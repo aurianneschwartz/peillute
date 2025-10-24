@@ -173,12 +173,12 @@ pub fn Pay(name: String) -> Element {
         spawn(async move {
             if total_amount > 0.0 {
                 if let Ok(_) = pay_for_user_server(name_clone.to_string(), total_amount).await {
-                    log::info!("Payment successful.");
+                    tracing::info!("Payment successful.");
                     product_quantities.set(vec![0u32; PRODUCTS.len()]);
                     error_signal.set(None);
                 }
             } else {
-                log::warn!("Attempted to pay with a total of 0.0. No action taken.");
+                tracing::warn!("Attempted to pay with a total of 0.0. No action taken.");
                 error_signal.set(Some(
                     "Cannot pay €0. Please select at least one item.".to_string(),
                 ));

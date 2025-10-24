@@ -138,7 +138,7 @@ impl AppState {
     /// Set the sync boolean at initialization
     pub fn init_sync(&mut self, sync_needed: bool) {
         if sync_needed {
-            log::info!("Local site need to be in synchronized");
+            tracing::info!("Local site need to be in synchronized");
         }
         self.sync_needed = sync_needed;
     }
@@ -150,7 +150,7 @@ impl AppState {
 
     /// Set the number of attended neighbours at initialization
     pub fn init_nb_first_attended_neighbours(&mut self, nb: i64) {
-        log::debug!("We will wait for {} attended neighbours", nb);
+        tracing::debug!("We will wait for {} attended neighbours", nb);
         self.nb_first_attended_neighbours = nb;
     }
 
@@ -227,7 +227,7 @@ impl AppState {
     pub async fn remove_peer_from_socket_closed(&mut self, socket_to_remove: std::net::SocketAddr) {
         // Find the site adress based on the socket
         let Some(addr_to_remove) = self.neighbours_socket.get(&socket_to_remove) else {
-            log::debug!("Site not found in the neighbours socket");
+            tracing::debug!("Site not found in the neighbours socket");
             return;
         };
 
@@ -292,7 +292,7 @@ impl AppState {
             self.notify_sc.notify_waiters();
             self.in_sc = false;
             self.waiting_sc = true;
-            log::info!("Début de la diffusion d'une acquisition de mutex");
+            tracing::info!("Début de la diffusion d'une acquisition de mutex");
             diffuse_message_without_lock(
                 &msg,
                 self.get_site_addr(),
@@ -302,7 +302,7 @@ impl AppState {
             )
             .await?;
         } else {
-            log::info!("Il n'y a pas de voisins, on prends la section critique");
+            tracing::info!("Il n'y a pas de voisins, on prends la section critique");
             self.in_sc = true;
             self.waiting_sc = false;
             self.notify_sc.notify_waiters();
@@ -340,7 +340,7 @@ impl AppState {
         };
 
         if should_diffuse {
-            log::info!("Début de la diffusion d'un relachement de mutex");
+            tracing::info!("Début de la diffusion d'un relachement de mutex");
             diffuse_message_without_lock(
                 &msg,
                 self.get_site_addr(),

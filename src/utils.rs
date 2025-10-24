@@ -16,7 +16,7 @@ pub fn get_mac_address() -> Option<String> {
 }
 #[cfg(feature = "server")]
 pub async fn reload_existing_site() -> Result<(String, crate::clock::Clock), String> {
-    use log::info;
+    use tracing::info;
     match crate::db::get_local_state() {
         Ok((site_id, clock)) => {
             info!("Existing site state reloaded");

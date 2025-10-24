@@ -124,7 +124,7 @@ impl SnapshotManager {
     /// vector clock values.
     /// all_received is defined by the state of our wave diffusion protocol
     pub fn push(&mut self, resp: crate::message::SnapshotResponse) -> Option<GlobalSnapshot> {
-        log::debug!("Adding snapshot {} in the manager.", resp.site_id);
+        tracing::debug!("Adding snapshot {} in the manager.", resp.site_id);
         self.received.push(LocalSnapshot {
             site_id: resp.site_id.clone(),
             vector_clock: resp.clock.get_vector_clock_map().clone(),
@@ -132,11 +132,11 @@ impl SnapshotManager {
         });
 
         if self.received.len() < self.expected {
-            log::debug!("{}/{} sites received.", self.received.len(), self.expected);
+            tracing::debug!("{}/{} sites received.", self.received.len(), self.expected);
             return None;
         }
 
-        log::debug!("All local snapshots received, processing snapshot.");
+        tracing::debug!("All local snapshots received, processing snapshot.");
 
         // In Sync and Network modes we simply aggregate all received
         // transactions without enforcing snapshot consistency. This prevents
@@ -198,7 +198,7 @@ impl SnapshotManager {
     fn build_snapshot(&self, snaps: &[LocalSnapshot]) -> GlobalSnapshot {
         let mut union: std::collections::HashSet<TxSummary> = std::collections::HashSet::new();
         for s in snaps {
-            log::info!(
+            tracing::info!(
                 "Adding transactions from site {}, transaction : {:?}",
                 s.site_id,
                 s.tx_log
@@ -257,7 +257,7 @@ pub async fn start_snapshot(mode: SnapshotMode) -> Result<(), Box<dyn std::error
             tx_log: summaries.clone(),
         }) {
             if mode.clone() == SnapshotMode::FileMode {
-                log::info!(
+                tracing::info!(
                     "Global snapshot ready to be saved at start, hold per site : {:#?}",
                     gs.missing
                 );
@@ -267,9 +267,9 @@ pub async fn start_snapshot(mode: SnapshotMode) -> Result<(), Box<dyn std::error
                     .parse()
                     .ok();
             } else if mode.clone() == SnapshotMode::SyncMode {
-                log::info!("No other site, synchronization done");
+                tracing::info!("No other site, synchronization done");
             } else {
-                log::error!(
+                tracing::error!(
                     "Start snapshot is not supposed to be called when there is no neighbours with network mode"
                 );
             }

@@ -33,22 +33,22 @@ pub fn control_worker() {
                 }
 
                 if in_st && nb_pending > 0 {
-                    log::info!("Début de la section critique");
+                    tracing::info!("Début de la section critique");
                     loop {
                         let cmd_opt = {
                             let mut st = LOCAL_APP_STATE.lock().await;
                             st.pending_commands.pop_front()
                         };
                         if let Some(cmd) = cmd_opt {
-                            log::info!("Execute critical command");
+                            tracing::info!("Execute critical command");
                             if let Err(e) = crate::control::execute_critical(cmd).await {
-                                log::error!("Erreur exécution commande critique : {}", e);
+                                tracing::error!("Erreur exécution commande critique : {}", e);
                             }
                         } else {
                             break;
                         }
                     }
-                    log::info!("Fin de la section critique");
+                    tracing::info!("Fin de la section critique");
                 }
             }
         }
@@ -58,7 +58,6 @@ pub fn control_worker() {
 #[cfg(feature = "server")]
 /// Parse a line of input from the CLI and converts it to a Command
 pub fn parse_command(line: Result<Option<String>, std::io::Error>) -> Command {
-    use log;
     match line {
         Ok(Some(cmd)) => {
             let command = match cmd.trim() {
@@ -83,7 +82,7 @@ pub fn parse_command(line: Result<Option<String>, std::io::Error>) -> Command {
             Command::Unknown("Aucun input".to_string())
         }
         Err(e) => {
-            log::error!("Erreur de lecture stdin : {}", e);
+            tracing::error!("Erreur de lecture stdin : {}", e);
             Command::Error("Erreur de lecture stdin".to_string())
         }
     }
@@ -163,8 +162,8 @@ pub async fn enqueue_critical(cmd: CriticalCommands) -> Result<(), Box<dyn std::
 
     // si on n’est ni en SC ni déjà en attente → on déclenche la vague
 
-    log::debug!("is in sc {}", !st.in_sc);
-    log::debug!("is waiting {}", !st.waiting_sc);
+    tracing::debug!("is in sc {}", !st.in_sc);
+    tracing::debug!("is waiting {}", !st.waiting_sc);
 
     if !st.in_sc && !st.waiting_sc {
         st.acquire_mutex().await?;
@@ -196,7 +195,7 @@ pub async fn execute_critical(cmd: CriticalCommands) -> Result<(), Box<dyn std::
         CriticalCommands::CreateUser { name } => {
             use crate::message::CreateUser;
             if name.is_empty() {
-                log::warn!("Skipping CreateUser command with empty username");
+                tracing::warn!("Skipping CreateUser command with empty username");
                 return Ok(());
             }
             super::db::create_user(&name)?;
@@ -573,24 +572,24 @@ pub async fn process_network_command(
     sender_id: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use crate::message::MessageInfo;
-    use log;
+
 
     let message_lamport_time = received_clock.get_lamport();
     let message_vc_clock = received_clock.get_vector_clock_map();
 
     if crate::db::transaction_exists(*message_lamport_time, sender_id)? {
-        log::info!("Transaction allready exists, skipping");
+        tracing::info!("Transaction allready exists, skipping");
         return Ok(());
     }
 
     match msg {
         crate::message::MessageInfo::CreateUser(create_user) => {
             if create_user.name.is_empty() {
-                log::warn!("Received CreateUser message with empty username, skipping");
+                tracing::warn!("Received CreateUser message with empty username, skipping");
                 return Ok(());
             }
             if crate::db::user_exists(&create_user.name)? {
-                log::info!("User already exists, skipping");
+                tracing::info!("User already exists, skipping");
                 return Ok(());
             }
             super::db::create_user(&create_user.name)?;
@@ -649,7 +648,7 @@ pub async fn process_network_command(
             )?;
         }
         crate::message::MessageInfo::SnapshotResponse(_) => {
-            log::error!("Should not process snapshot response");
+            tracing::error!("Should not process snapshot response");
         }
         crate::message::MessageInfo::AckMutex(_) => {
             // Handle mutex acknowledgment
@@ -661,10 +660,10 @@ pub async fn process_network_command(
             // Handle mutex release
         }
         crate::message::MessageInfo::None => {
-            log::error!("Should not process None message");
+            tracing::error!("Should not process None message");
         }
         crate::message::MessageInfo::Acknowledge(_) => {
-            log::error!("Should not process Acknowledge message");
+            tracing::error!("Should not process Acknowledge message");
         }
     }
 

@@ -279,7 +279,7 @@ pub fn Info() -> Element {
                         onclick: move |_| {
                             async move {
                                 if let Err(e) = ask_for_snapshot().await {
-                                    log::error!("Error taking snapshot: {e}");
+                                    tracing::error!("Error taking snapshot: {e}");
                                 }
                             }
                         },

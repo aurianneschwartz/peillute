@@ -59,8 +59,9 @@ async fn main() -> rusqlite::Result<(), Box<dyn std::error::Error>> {
     }
 
     control::control_worker();
-    // Init the logger
-    env_logger::init();
+    tracing_subscriber::fmt()
+    .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+    .init();
 
     let args = Args::parse();
 
@@ -109,7 +110,7 @@ async fn main() -> rusqlite::Result<(), Box<dyn std::error::Error>> {
     // Create the network listener
     let network_listener_local_addr = final_site_addr.clone();
     let listener: TcpListener = TcpListener::bind(network_listener_local_addr).await?;
-    log::debug!("Listening on: {}", network_listener_local_addr);
+    tracing::debug!("Listening on: {}", network_listener_local_addr);
 
     // Create the web app listener
     let router = axum::Router::new().serve_dioxus_application(ServeConfigBuilder::default(), App);
@@ -171,7 +172,7 @@ async fn main_loop(
             line = lines.next_line() => {
                 let command = parse_command(line);
                 if let Err(e) = process_cli_command(command).await{
-                    log::error!("Error handling a cli command:\n{}", e);
+                    tracing::error!("Error handling a cli command:\n{}", e);
                 }
                 print!("> ");
                 std_io::stdout().flush().unwrap();
@@ -191,7 +192,7 @@ async fn main_loop(
 async fn disconnect() {
     use crate::message::{MessageInfo, NetworkMessageCode};
     use crate::state::LOCAL_APP_STATE;
-    use log::{error, info};
+    use tracing::{error, info};
 
     let (local_addr, site_id, connected_nei_addr) = {
         let state = LOCAL_APP_STATE.lock().await;

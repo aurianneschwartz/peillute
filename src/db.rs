@@ -100,7 +100,7 @@ pub fn init_db() -> rusqlite::Result<()> {
         )?;
     }
 
-    log::debug!("Database initialized successfully.");
+    tracing::debug!("Database initialized successfully.");
     Ok(())
 }
 
@@ -136,10 +136,10 @@ pub fn update_db_with_snapshot(
     snapshot: &crate::snapshot::GlobalSnapshot,
     vector_clock: &std::collections::HashMap<String, i64>,
 ) {
-    log::info!("Applying snapshot to database");
+    tracing::info!("Applying snapshot to database");
 
     if snapshot.missing.is_empty() {
-        log::info!("No missing transactions, nothing to do");
+        tracing::info!("No missing transactions, nothing to do");
         return;
     }
 
@@ -243,12 +243,12 @@ pub fn user_exists(name: &str) -> rusqlite::Result<bool> {
 pub fn create_user(unique_name: &str) -> rusqlite::Result<()> {
     use rusqlite::params;
     if user_exists(unique_name)? {
-        log::warn!("User '{}' already exists.", unique_name);
+        tracing::warn!("User '{}' already exists.", unique_name);
         return Ok(());
     }
 
     {
-        log::debug!("Ajout de l'utilisateur {}", unique_name);
+        tracing::debug!("Ajout de l'utilisateur {}", unique_name);
         let conn = DB_CONN.lock().unwrap();
         conn.execute(
             "INSERT INTO User (unique_name, solde) VALUES (?1, 0)",
@@ -268,7 +268,7 @@ pub fn delete_user(name: &str) -> rusqlite::Result<()> {
             Some(format!("User '{}' does not exist.", name).into()),
         );
 
-        log::error!("User '{}' does not exist.", name);
+        tracing::error!("User '{}' does not exist.", name);
         return Err(err);
     }
     {
@@ -314,7 +314,7 @@ pub fn update_solde(name: &str) -> rusqlite::Result<()> {
             "UPDATE User SET solde = ?1 WHERE unique_name = ?2",
             params![solde, name],
         )?;
-        log::debug!("Updated solde for {} to {}", name, solde);
+        tracing::debug!("Updated solde for {} to {}", name, solde);
         Ok(())
     }
 }
@@ -352,7 +352,7 @@ pub fn create_transaction(
             ),
         );
 
-        log::error!(
+        tracing::error!(
             "Insufficient funds: '{}' has less than {}.",
             from_user,
             amount
@@ -363,7 +363,7 @@ pub fn create_transaction(
     ensure_user(from_user)?;
     ensure_user(to_user)?;
 
-    log::debug!(
+    tracing::debug!(
         "Creating transaction from {} to {} with amount {}",
         from_user,
         to_user,
@@ -421,7 +421,7 @@ pub fn deposit(
             Some(format!("Unknown User: {}", user).into()),
         );
 
-        log::error!("Unknown User: {}", user);
+        tracing::error!("Unknown User: {}", user);
         return Err(err);
     }
 
@@ -431,11 +431,11 @@ pub fn deposit(
             Some(format!("Negative deposit amount: {}", amount).into()),
         );
 
-        log::error!("Negative deposit amount: {}", amount);
+        tracing::error!("Negative deposit amount: {}", amount);
         return Err(err);
     }
 
-    log::debug!("Depositing {} to {}", amount, user);
+    tracing::debug!("Depositing {} to {}", amount, user);
 
     create_transaction(
         NULL,
@@ -461,7 +461,7 @@ pub fn withdraw(
             rusqlite::ffi::Error::new(rusqlite::ffi::ErrorCode::Unknown as i32),
             Some(format!("Negative withdrawal amount: {}", amount).into()),
         );
-        log::error!("Negative withdrawal amount: {}", amount);
+        tracing::error!("Negative withdrawal amount: {}", amount);
         return Err(err);
     }
     if !user_exists(user)? {
@@ -469,7 +469,7 @@ pub fn withdraw(
             rusqlite::ffi::Error::new(rusqlite::ffi::ErrorCode::Unknown as i32),
             Some(format!("Unknown user: {}", user).into()),
         );
-        log::error!("Unknown user: {}", user);
+        tracing::error!("Unknown user: {}", user);
         return Err(err);
     }
     if calculate_solde(user)? < amount {
@@ -477,11 +477,11 @@ pub fn withdraw(
             rusqlite::ffi::Error::new(rusqlite::ffi::ErrorCode::Unknown as i32),
             Some(format!("User {} not enough money", user).into()),
         );
-        log::error!("User {} not enough money", user);
+        tracing::error!("User {} not enough money", user);
         return Err(err);
     }
 
-    log::debug!("Withdrawing {} from {}", amount, user);
+    tracing::debug!("Withdrawing {} from {}", amount, user);
 
     create_transaction(
         user,
@@ -523,7 +523,7 @@ pub fn refund_transaction(
                 rusqlite::ffi::Error::new(rusqlite::ffi::ErrorCode::Unknown as i32),
                 Some(format!("User {} has not enough money to give back", &tx.to_user).into()),
             );
-            log::error!("User {} has not enough money to give back", &tx.to_user);
+            tracing::error!("User {} has not enough money to give back", &tx.to_user);
             return Err(err);
         }
 
@@ -538,7 +538,7 @@ pub fn refund_transaction(
                     .into(),
                 ),
             );
-            log::error!(
+            tracing::error!(
                 "Transaction {}-{} is a refund transaction",
                 node,
                 transac_time
@@ -551,7 +551,7 @@ pub fn refund_transaction(
                 rusqlite::ffi::Error::new(rusqlite::ffi::ErrorCode::Unknown as i32),
                 Some(format!("Transaction {}-{} already refunded", node, transac_time).into()),
             );
-            log::error!("Transaction {}-{} already refunded", node, transac_time);
+            tracing::error!("Transaction {}-{} already refunded", node, transac_time);
             return Err(err);
         }
 
@@ -576,7 +576,7 @@ pub fn refund_transaction(
             ),
         );
 
-        log::error!(
+        tracing::error!(
             "No transaction found at time {} from node {}",
             transac_time,
             node

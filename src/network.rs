@@ -87,11 +87,11 @@ pub async fn spawn_writer_task(
         let mut stream = stream;
         while let Some(data) = rx.recv().await {
             if stream.write_all(&data).await.is_err() {
-                log::error!("Failed to send message");
+                tracing::error!("Failed to send message");
                 break;
             }
         }
-        log::debug!("Writer task closed.");
+        tracing::debug!("Writer task closed.");
     });
 }
 
@@ -115,10 +115,10 @@ pub async fn announce(ip: &str, start_port: u16, end_port: u16, selected_port: u
 
     // Collect all peers to contact
     let peer_to_ping: Vec<std::net::SocketAddr> = if !cli_peers.is_empty() {
-        log::debug!("Manually connecting to peers based on args");
+        tracing::debug!("Manually connecting to peers based on args");
         cli_peers
     } else {
-        log::debug!("Looking for all ports to find potential peers");
+        tracing::debug!("Looking for all ports to find potential peers");
         (start_port..=end_port)
             .filter(|&port| port != selected_port)
             .map(|port| format!("{}:{}", ip, port).parse().unwrap())
@@ -182,11 +182,11 @@ pub async fn announce(ip: &str, start_port: u16, end_port: u16, selected_port: u
 #[cfg(feature = "server")]
 /// Starts listening for messages from a new peer
 pub async fn start_listening(stream: tokio::net::TcpStream, addr: std::net::SocketAddr) {
-    log::debug!("Accepted connection from: {}", addr);
+    tracing::debug!("Accepted connection from: {}", addr);
 
     tokio::spawn(async move {
         if let Err(e) = handle_network_message(stream, addr).await {
-            log::error!("Error handling connection from {}: {}", addr, e);
+            tracing::error!("Error handling connection from {}: {}", addr, e);
         }
     });
 }
@@ -208,10 +208,10 @@ pub async fn handle_network_message(
         let n = stream.read(&mut buf).await?;
 
         if n == 0 {
-            log::warn!("Connection closed by: {}", socket_of_the_sender);
+            tracing::warn!("Connection closed by: {}", socket_of_the_sender);
             // Here we should remove the site from the network in the app state
             {
-                log::debug!("Removing {} from the peers", socket_of_the_sender);
+                tracing::debug!("Removing {} from the peers", socket_of_the_sender);
                 let mut state = LOCAL_APP_STATE.lock().await;
                 state
                     .remove_peer_from_socket_closed(socket_of_the_sender)
@@ -220,17 +220,17 @@ pub async fn handle_network_message(
             return Ok(());
         }
 
-        log::debug!("Received {} bytes from {}", n, socket_of_the_sender);
+        tracing::debug!("Received {} bytes from {}", n, socket_of_the_sender);
 
         let message: Message = match decode::from_slice(&buf[..n]) {
             Ok(msg) => msg,
             Err(e) => {
-                log::error!("Error decoding message: {}", e);
+                tracing::error!("Error decoding message: {}", e);
                 continue;
             }
         };
 
-        log::debug!(
+        tracing::debug!(
             "Message received from site {} : {:?}",
             message.sender_addr,
             message.clone()
@@ -283,7 +283,7 @@ pub async fn handle_network_message(
                             .attended_neighbours_nb_for_transaction_wave
                             .insert(message.message_initiator_id.clone(), current_value - 1);
 
-                        log::debug!("Nombre de voisin : {}", current_value - 1);
+                        tracing::debug!("Nombre de voisin : {}", current_value - 1);
 
                         diffuse = state
                             .attended_neighbours_nb_for_transaction_wave
@@ -310,7 +310,7 @@ pub async fn handle_network_message(
                         )
                     };
                     // Acquit message to parent
-                    log::debug!(
+                    tracing::debug!(
                         "Réception d'un message de d'acquisition de mutex, on est sur une feuille, on acquite, envoie à {}",
                         message.sender_addr.to_string().as_str()
                     );
@@ -379,7 +379,7 @@ pub async fn handle_network_message(
                         println!("\x1b[1;31mDiffusion terminée et réussie !\x1b[0m");
                         state.try_enter_sc();
                     } else {
-                        log::debug!(
+                        tracing::debug!(
                             "On est de le noeud {}. On a reçu un rouge de tous nos fils: on acquite au parent {}",
                             state.get_site_addr(),
                             state
@@ -450,7 +450,7 @@ pub async fn handle_network_message(
                         // On vient de release la section critique, on peut essayer d'y entrer à nouveau
                         state.try_enter_sc();
                     } else {
-                        log::debug!(
+                        tracing::debug!(
                             "On est de le noeud {}. On a reçu un rouge de tous nos fils: on acquite au parent {}",
                             state.get_site_addr(),
                             state
@@ -516,7 +516,7 @@ pub async fn handle_network_message(
                             .attended_neighbours_nb_for_transaction_wave
                             .insert(message.message_initiator_id.clone(), current_value - 1);
 
-                        log::debug!("Nombre de voisin : {}", current_value - 1);
+                        tracing::debug!("Nombre de voisin : {}", current_value - 1);
 
                         diffuse = state
                             .attended_neighbours_nb_for_transaction_wave
@@ -543,7 +543,7 @@ pub async fn handle_network_message(
                         )
                     };
                     // Acquit message to parent
-                    log::debug!(
+                    tracing::debug!(
                         "Réception d'un message de relachement de mutex global, on est sur une feuille, on acquite, envoie à {}",
                         message.sender_addr.to_string().as_str()
                     );
@@ -654,7 +654,7 @@ pub async fn handle_network_message(
                 }
 
                 if ready_to_sync {
-                    log::info!("All neighbours have responded, starting synchronization");
+                    tracing::info!("All neighbours have responded, starting synchronization");
                     crate::control::enqueue_critical(
                         crate::control::CriticalCommands::SyncSnapshot,
                     )
@@ -672,7 +672,7 @@ pub async fn handle_network_message(
                     )
                     .await
                     {
-                        log::error!("Error handling command:\n{}", e);
+                        tracing::error!("Error handling command:\n{}", e);
                     }
                     // wave diffusion
                     let mut diffuse = false;
@@ -700,7 +700,7 @@ pub async fn handle_network_message(
                                 .attended_neighbours_nb_for_transaction_wave
                                 .insert(message.message_initiator_id.clone(), current_value - 1);
 
-                            log::debug!("Nombre de voisin : {}", current_value - 1);
+                            tracing::debug!("Nombre de voisin : {}", current_value - 1);
 
                             diffuse = state
                                 .attended_neighbours_nb_for_transaction_wave
@@ -728,7 +728,7 @@ pub async fn handle_network_message(
                             )
                         };
                         // Acquit message to parent
-                        log::debug!(
+                        tracing::debug!(
                             "Réception d'un message de transaction, on est sur une feuille, on acquite, envoie à {}",
                             message.sender_addr.to_string().as_str()
                         );
@@ -758,7 +758,7 @@ pub async fn handle_network_message(
                         }
                     }
                 } else {
-                    log::error!("Command is None for Transaction message");
+                    tracing::error!("Command is None for Transaction message");
                 }
             }
             NetworkMessageCode::TransactionAcknowledgement => {
@@ -798,7 +798,7 @@ pub async fn handle_network_message(
                         println!("\x1b[1;31mDiffusion terminée et réussie !\x1b[0m");
                         should_reset = true;
                     } else {
-                        log::debug!(
+                        tracing::debug!(
                             "On est dans le noeud {}. On a reçu un rouge de tous nos fils: on acquite au parent {}",
                             state.get_site_addr().to_string().as_str(),
                             state
@@ -836,7 +836,7 @@ pub async fn handle_network_message(
             }
 
             NetworkMessageCode::Error => {
-                log::debug!("Error message received: {:?}", message);
+                tracing::debug!("Error message received: {:?}", message);
             }
             NetworkMessageCode::Disconnect => {
                 {
@@ -876,7 +876,7 @@ pub async fn handle_network_message(
                             .attended_neighbours_nb_for_transaction_wave
                             .insert(message.message_initiator_id.clone(), current_value - 1);
 
-                        log::debug!("Nombre de voisin : {}", current_value - 1);
+                        tracing::debug!("Nombre de voisin : {}", current_value - 1);
 
                         diffuse = state
                             .attended_neighbours_nb_for_transaction_wave
@@ -895,7 +895,7 @@ pub async fn handle_network_message(
                     // Here we should diffuse the message because we are not on a leaf
                     // We should also start a snapshot in network mode
                     // When this snapshot is done, we should send the global snapshot to the parent
-                    log::debug!(
+                    tracing::debug!(
                         "We are not on a leaf, we start our own global snapshot construction and diffuse the request to other nodes"
                     );
                     crate::snapshot::start_snapshot(crate::snapshot::SnapshotMode::NetworkMode)
@@ -908,7 +908,7 @@ pub async fn handle_network_message(
                         state.get_parent_addr_for_wave(message.message_initiator_id.clone())
                     };
                     // Acquit message to parent
-                    log::debug!(
+                    tracing::debug!(
                         "Réception d'une demande de snapshot, on est sur une feuille, on crée un snapshot local, on envoie à {}",
                         message.sender_addr.to_string().as_str()
                     );
@@ -983,15 +983,15 @@ pub async fn handle_network_message(
                         // on est chez le parent
                         // diffusion terminée
                         // Réinitialisation
-                        log::debug!(
+                        tracing::debug!(
                             "L'initiateur à reçu toutes ses snapshots, il devrait créer sa snapshot globale"
                         );
                         if let MessageInfo::SnapshotResponse(resp) = message.info {
                             let mut mgr = crate::snapshot::LOCAL_SNAPSHOT_MANAGER.lock().await;
                             if mgr.mode == crate::snapshot::SnapshotMode::FileMode {
-                                log::debug!("La snapshot devrait être sauvegardée");
+                                tracing::debug!("La snapshot devrait être sauvegardée");
                                 if let Some(gs) = mgr.push(resp) {
-                                    log::info!(
+                                    tracing::info!(
                                         "Global snapshot ready to save, hold per site : {:#?}",
                                         gs.missing
                                     );
@@ -1002,11 +1002,11 @@ pub async fn handle_network_message(
                                         .ok();
                                 }
                             } else if mgr.mode == crate::snapshot::SnapshotMode::SyncMode {
-                                log::debug!(
+                                tracing::debug!(
                                     "La snapshot devrait être utilisée pour la synchronisation"
                                 );
                                 if let Some(gs) = mgr.push(resp) {
-                                    log::info!(
+                                    tracing::info!(
                                         "Global snapshot ready to be synced, hold per site : {:#?}",
                                         gs.missing
                                     );
@@ -1021,7 +1021,7 @@ pub async fn handle_network_message(
                         println!("\x1b[1;31mDiffusion terminée et réussie !\x1b[0m");
                         should_reset = true;
                     } else {
-                        log::debug!(
+                        tracing::debug!(
                             "On est dans le noeud {}. On a reçu un rouge de tous nos fils: on acquite au parent {}",
                             state.get_site_addr().to_string().as_str(),
                             state
@@ -1029,7 +1029,7 @@ pub async fn handle_network_message(
                                 .to_string()
                                 .as_str()
                         );
-                        log::debug!(
+                        tracing::debug!(
                             "On devrait pouvoir construire une snapshot globale avec tous nos voisins et l'envoyer à l'adresse de notre parent {}",
                             state
                                 .get_parent_addr_for_wave(message.message_initiator_id.clone())
@@ -1039,9 +1039,9 @@ pub async fn handle_network_message(
                         if let MessageInfo::SnapshotResponse(resp) = message.info {
                             let mut mgr = crate::snapshot::LOCAL_SNAPSHOT_MANAGER.lock().await;
                             if mgr.mode == crate::snapshot::SnapshotMode::NetworkMode {
-                                log::debug!("La snapshot devrait être envoyés au père");
+                                tracing::debug!("La snapshot devrait être envoyés au père");
                                 if let Some(gs) = mgr.push(resp) {
-                                    log::info!(
+                                    tracing::info!(
                                         "Global snapshot ready to be send to parent, hold per site : {:#?}",
                                         gs.missing
                                     );
@@ -1066,11 +1066,11 @@ pub async fn handle_network_message(
                                     )
                                     .await?;
                                 } else {
-                                    log::error!("Le site aurait du récupérer toutes ses snapshots");
+                                    tracing::error!("Le site aurait du récupérer toutes ses snapshots");
                                 }
                             }
                         } else {
-                            log::error!("Message de type SnapshotResponse attendu, mais pas reçu");
+                            tracing::error!("Message de type SnapshotResponse attendu, mais pas reçu");
                         }
                     }
 
@@ -1086,20 +1086,20 @@ pub async fn handle_network_message(
                         state.release_mutex().await?;
                     };
                 } else {
-                    log::debug!(
+                    tracing::debug!(
                         "On a reçu un message rouge d'un des fils mais la vague n'est pas encore terminée"
                     );
                     // We should add the Snapshot to our manager
                     if let MessageInfo::SnapshotResponse(resp) = message.info {
                         let mut mgr = crate::snapshot::LOCAL_SNAPSHOT_MANAGER.lock().await;
-                        log::debug!("La snapshot devrait être ajoutés à l'état du manager");
+                        tracing::debug!("La snapshot devrait être ajoutés à l'état du manager");
                         if let Some(_) = mgr.push(resp) {
-                            log::error!(
+                            tracing::error!(
                                 "On ne devrait pas encore pouvoir construire une snapshot globale vu que la vague n'est pas terminée"
                             );
                         }
                     } else {
-                        log::error!("Message de type SnapshotResponse attendu, mais pas reçu");
+                        tracing::error!("Message de type SnapshotResponse attendu, mais pas reçu");
                     }
                 }
             }
@@ -1127,7 +1127,7 @@ pub async fn send_message(
     use rmp_serde::encode;
 
     if code == crate::message::NetworkMessageCode::Transaction && command.is_none() {
-        log::error!("Command is None for Transaction message");
+        tracing::error!("Command is None for Transaction message");
         return Err("Command is None for Transaction message".into());
     }
 
@@ -1143,7 +1143,7 @@ pub async fn send_message(
     };
 
     if recipient_address.ip().is_unspecified() || recipient_address.port() == 0 {
-        log::warn!("Skipping invalid peer address {}", recipient_address);
+        tracing::warn!("Skipping invalid peer address {}", recipient_address);
         return Ok(());
     }
 
@@ -1167,7 +1167,7 @@ pub async fn send_message(
                 None => {
                     let err_msg =
                         format!("Sender not found after connecting to {}", recipient_address);
-                    log::error!("{}", err_msg);
+                    tracing::error!("{}", err_msg);
                     return Err(err_msg.into());
                 }
             }
@@ -1181,11 +1181,11 @@ pub async fn send_message(
                 "Impossible to send msg to {} due to error : {}",
                 recipient_address, e
             );
-            log::error!("{}", err_msg);
+            tracing::error!("{}", err_msg);
             return Err(err_msg.into());
         }
     };
-    log::debug!("Sent message {:?} to {}", &msg, recipient_address);
+    tracing::debug!("Sent message {:?} to {}", &msg, recipient_address);
     Ok(())
 }
 
@@ -1198,7 +1198,7 @@ pub async fn diffuse_message(
 ) -> Result<(), Box<dyn std::error::Error>> {
     use crate::state::LOCAL_APP_STATE;
 
-    log::debug!(
+    tracing::debug!(
         "Début de la diffusion d'un message de type {:?}",
         message.code
     );
@@ -1237,7 +1237,7 @@ pub async fn diffuse_message_without_lock(
     for connected_nei in connected_nei_addr {
         let peer_addr_str = connected_nei.to_string();
         if connected_nei != parent_address {
-            log::debug!("Sending message to: {}", peer_addr_str);
+            tracing::debug!("Sending message to: {}", peer_addr_str);
 
             if let Err(e) = send_message(
                 connected_nei,
@@ -1252,7 +1252,7 @@ pub async fn diffuse_message_without_lock(
             )
             .await
             {
-                log::error!("❌ Impossible d’envoyer à {} : {}", peer_addr_str, e);
+                tracing::error!("❌ Impossible d’envoyer à {} : {}", peer_addr_str, e);
             }
         }
     }
