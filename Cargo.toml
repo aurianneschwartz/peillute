@@ -29,6 +29,8 @@ opentelemetry = { version = "0.26", features = ["trace", "logs"] }
 opentelemetry_sdk = { version = "0.26", features = ["rt-tokio", "logs"] } 
 opentelemetry-stdout = "0.26"
 opentelemetry-appender-tracing = "0.26"  
+opentelemetry-otlp = { version = "0.26", features = ["tonic", "metrics"] }
+opentelemetry-semantic-conventions = "0.26"
 
 [features]
 default = ["server"]
