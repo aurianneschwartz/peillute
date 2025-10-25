@@ -43,14 +43,14 @@ struct Args {
 use opentelemetry::trace::TracerProvider;
 use opentelemetry_sdk::{
     trace::{TracerProvider as SdkTracerProvider, Config as TraceConfig},
-    logs::LoggerProvider as SdkLoggerProvider,  // Supprime Config as LogConfig
+    logs::LoggerProvider as SdkLoggerProvider,  
 };
 use opentelemetry_stdout::{SpanExporter, LogExporter};
 use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 fn init_tracing() -> Result<(), Box<dyn std::error::Error>> {
-    // TracerProvider (spans)
+    // TracerProvider 
     let trace_provider = SdkTracerProvider::builder()
         .with_simple_exporter(SpanExporter::default())
         .with_config(TraceConfig::default())
@@ -58,10 +58,10 @@ fn init_tracing() -> Result<(), Box<dyn std::error::Error>> {
     
     let tracer = trace_provider.tracer("peillute");
 
-    // LoggerProvider (tous les logs) - API simplifiée pour 0.26
+    // LoggerProvider 
     let log_provider = SdkLoggerProvider::builder()
         .with_simple_exporter(LogExporter::default())
-        .build();  // Pas de with_config pour les logs dans cette version
+        .build();  
 
     let otel_log_layer = OpenTelemetryTracingBridge::new(&log_provider);
 
@@ -98,6 +98,11 @@ async fn main() -> rusqlite::Result<(), Box<dyn std::error::Error>> {
     
     //init the logs
     init_tracing()?;
+
+    tracing::info!(
+        operation = "init_tracing",
+        "📌Tracing initialized.📌"
+    );
 
     let args = Args::parse();
 
@@ -146,7 +151,11 @@ async fn main() -> rusqlite::Result<(), Box<dyn std::error::Error>> {
     // Create the network listener
     let network_listener_local_addr = final_site_addr.clone();
     let listener: TcpListener = TcpListener::bind(network_listener_local_addr).await?;
-    tracing::debug!("Listening on: {}", network_listener_local_addr);
+    tracing::debug!(
+        operation = "start_listener",
+        network_addr = %network_listener_local_addr,
+        "Listening on network address."
+    );
 
     // Create the web app listener
     let router = axum::Router::new().serve_dioxus_application(ServeConfigBuilder::default(), App);
@@ -208,7 +217,11 @@ async fn main_loop(
             line = lines.next_line() => {
                 let command = parse_command(line);
                 if let Err(e) = process_cli_command(command).await{
-                    tracing::error!("Error handling a cli command:\n{}", e);
+                    tracing::error!(
+                        operation = "process_cli_command",
+                        error = %e,
+                        "Error handling a cli command."
+                    );
                 }
                 print!("> ");
                 std_io::stdout().flush().unwrap();

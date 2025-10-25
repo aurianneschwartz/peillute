@@ -138,7 +138,11 @@ impl AppState {
     /// Set the sync boolean at initialization
     pub fn init_sync(&mut self, sync_needed: bool) {
         if sync_needed {
-            tracing::info!("Local site need to be in synchronized");
+            tracing::warn!(
+            sync_needed = sync_needed,
+            operation = "init_sync", 
+            "Local site requires synchronization with network"
+        );
         }
         self.sync_needed = sync_needed;
     }
@@ -150,7 +154,11 @@ impl AppState {
 
     /// Set the number of attended neighbours at initialization
     pub fn init_nb_first_attended_neighbours(&mut self, nb: i64) {
-        tracing::debug!("We will wait for {} attended neighbours", nb);
+        tracing::debug!(
+            operation = "init_nb_first_attended_neighbours",
+            nb_of_attended_neighbors = nb,
+            "We will wait for this number of neighbours",
+        );
         self.nb_first_attended_neighbours = nb;
     }
 
@@ -227,7 +235,10 @@ impl AppState {
     pub async fn remove_peer_from_socket_closed(&mut self, socket_to_remove: std::net::SocketAddr) {
         // Find the site adress based on the socket
         let Some(addr_to_remove) = self.neighbours_socket.get(&socket_to_remove) else {
-            tracing::debug!("Site not found in the neighbours socket");
+            tracing::debug!(
+                operation = "remove_peer_from_socket_closed",
+                "Site not found in the neighbours socket"
+            );
             return;
         };
 
@@ -292,7 +303,11 @@ impl AppState {
             self.notify_sc.notify_waiters();
             self.in_sc = false;
             self.waiting_sc = true;
-            tracing::info!("Début de la diffusion d'une acquisition de mutex");
+            tracing::info!(
+                node = self.site_id.as_str(),
+                operation = "acquire_mutex",
+                "Start of mutex acquisition broadcasting"
+            );
             diffuse_message_without_lock(
                 &msg,
                 self.get_site_addr(),
@@ -302,7 +317,11 @@ impl AppState {
             )
             .await?;
         } else {
-            tracing::info!("Il n'y a pas de voisins, on prends la section critique");
+            tracing::info!(
+                node = self.site_id.as_str(),
+                operation = "acquire_mutex",
+                "No neighbors available, entering critical section"
+            );
             self.in_sc = true;
             self.waiting_sc = false;
             self.notify_sc.notify_waiters();
@@ -333,14 +352,17 @@ impl AppState {
         self.waiting_sc = false;
 
         let should_diffuse = {
-            // initialisation des paramètres avant la diffusion d'un message
             self.set_parent_addr(self.site_id.to_string(), self.site_addr);
             self.set_nb_nei_for_wave(self.site_id.to_string(), self.get_nb_connected_neighbours());
             self.get_nb_connected_neighbours() > 0
         };
 
         if should_diffuse {
-            tracing::info!("Début de la diffusion d'un relachement de mutex");
+            tracing::info!(
+                node = self.site_id.as_str(),
+                operation = "release_mutex",
+                "Start of a mutex release broadcast"
+            );
             diffuse_message_without_lock(
                 &msg,
                 self.get_site_addr(),

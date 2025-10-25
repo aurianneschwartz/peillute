@@ -7,6 +7,7 @@
 #[cfg(feature = "server")]
 /// Represents a financial transaction in the system
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq)]
+#[allow(dead_code)]
 pub struct Transaction {
     /// Unique identifier for the transaction
     pub id: u64,

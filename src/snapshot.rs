@@ -124,7 +124,12 @@ impl SnapshotManager {
     /// vector clock values.
     /// all_received is defined by the state of our wave diffusion protocol
     pub fn push(&mut self, resp: crate::message::SnapshotResponse) -> Option<GlobalSnapshot> {
-        tracing::debug!("Adding snapshot {} in the manager.", resp.site_id);
+        tracing::debug!(
+            operation = "snapshot_push",
+            response_site = %resp.site_id,
+            expected_snapshots = self.expected,
+            "Adding snapshot in the manager."
+        );
         self.received.push(LocalSnapshot {
             site_id: resp.site_id.clone(),
             vector_clock: resp.clock.get_vector_clock_map().clone(),
@@ -132,11 +137,21 @@ impl SnapshotManager {
         });
 
         if self.received.len() < self.expected {
-            tracing::debug!("{}/{} sites received.", self.received.len(), self.expected);
+            tracing::debug!(
+                operation = "snapshot_push",
+                sites_received = self.received.len(),
+                sites_expected = self.expected,
+                "Number of snapshots received is less than expected, waiting for more."
+            );
             return None;
         }
 
-        tracing::debug!("All local snapshots received, processing snapshot.");
+        tracing::debug!(
+            operation = "snapshot_push",
+             sites_received = self.received.len(),
+             sites_expected = self.expected,
+            "All local snapshots received, processing snapshot."
+        );
 
         // In Sync and Network modes we simply aggregate all received
         // transactions without enforcing snapshot consistency. This prevents
@@ -199,9 +214,10 @@ impl SnapshotManager {
         let mut union: std::collections::HashSet<TxSummary> = std::collections::HashSet::new();
         for s in snaps {
             tracing::info!(
-                "Adding transactions from site {}, transaction : {:?}",
-                s.site_id,
-                s.tx_log
+                operation = "build_snapshot",
+                site = %s.site_id,
+                transactions = ?s.tx_log,
+                "Adding transactions from site."
             );
             union.extend(s.tx_log.iter().cloned());
         }
@@ -258,8 +274,9 @@ pub async fn start_snapshot(mode: SnapshotMode) -> Result<(), Box<dyn std::error
         }) {
             if mode.clone() == SnapshotMode::FileMode {
                 tracing::info!(
-                    "Global snapshot ready to be saved at start, hold per site : {:#?}",
-                    gs.missing
+                    operation = "start_snapshot",
+                    missing = ?gs.missing,
+                    "Global snapshot ready to be saved at start, hold per site.",
                 );
                 mgr.path = crate::snapshot::persist(&gs, site_id.clone())
                     .await
@@ -267,10 +284,14 @@ pub async fn start_snapshot(mode: SnapshotMode) -> Result<(), Box<dyn std::error
                     .parse()
                     .ok();
             } else if mode.clone() == SnapshotMode::SyncMode {
-                tracing::info!("No other site, synchronization done");
+                tracing::info!(
+                    operation = "start_snapshot",
+                    "No other site, synchronization done."
+                );
             } else {
                 tracing::error!(
-                    "Start snapshot is not supposed to be called when there is no neighbours with network mode"
+                    operation = "start_snapshot",
+                    "Start snapshot is not supposed to be called when there is no neighbours with network mode."
                 );
             }
         }
@@ -293,7 +314,11 @@ pub async fn persist(snapshot: &GlobalSnapshot, site_id: String) -> std::io::Res
     let json = serde_json::to_string_pretty(snapshot).unwrap();
     file.write_all(json.as_bytes())?;
     println!("📸 Snapshot completed successfully at {}", filename);
-
+    tracing::info!(
+        operation = "persist_snapshot",
+        filename = %filename,
+        "Snapshot saved to file."
+    );
     Ok(filename)
 }
 

@@ -33,22 +33,36 @@ pub fn control_worker() {
                 }
 
                 if in_st && nb_pending > 0 {
-                    tracing::info!("Début de la section critique");
+                    tracing::info!(
+                        operation = "control_worker",
+                        "pending_commands" = nb_pending,
+                        "Starting critical section"
+                    );
                     loop {
                         let cmd_opt = {
                             let mut st = LOCAL_APP_STATE.lock().await;
                             st.pending_commands.pop_front()
                         };
                         if let Some(cmd) = cmd_opt {
-                            tracing::info!("Execute critical command");
+                            tracing::info!(
+                                operation = "control_worker",
+                                "Execute critical command"
+                            );
                             if let Err(e) = crate::control::execute_critical(cmd).await {
-                                tracing::error!("Erreur exécution commande critique : {}", e);
+                                tracing::error!(
+                                    operation = "execute_critical_command",
+                                    error = %e,
+                                    "Error executing critical command"
+                                );
                             }
                         } else {
                             break;
                         }
                     }
-                    tracing::info!("Fin de la section critique");
+                    tracing::info!(
+                        operation = "control_worker",
+                        "Ending critical section"
+                    );
                 }
             }
         }
@@ -78,11 +92,19 @@ pub fn parse_command(line: Result<Option<String>, std::io::Error>) -> Command {
             command
         }
         Ok(None) => {
+            tracing::warn!(
+                operation = "parse_command",
+                "No input received"
+            );
             println!("Aucun input");
             Command::Unknown("Aucun input".to_string())
         }
         Err(e) => {
-            tracing::error!("Erreur de lecture stdin : {}", e);
+            tracing::error!(
+                operation = "parse_command",
+                error = %e,
+                "Error reading stdin"
+            );
             Command::Error("Erreur de lecture stdin".to_string())
         }
     }
@@ -162,9 +184,14 @@ pub async fn enqueue_critical(cmd: CriticalCommands) -> Result<(), Box<dyn std::
 
     // si on n’est ni en SC ni déjà en attente → on déclenche la vague
 
-    tracing::debug!("is in sc {}", !st.in_sc);
-    tracing::debug!("is waiting {}", !st.waiting_sc);
-
+    tracing::debug!(
+        site = %st.get_site_id(),
+        operation = "enqueue_critical",
+        in_sc = %st.in_sc,
+        waiting_sc = %st.waiting_sc,
+        "Request critical section"
+    );
+ 
     if !st.in_sc && !st.waiting_sc {
         st.acquire_mutex().await?;
     }
@@ -195,7 +222,11 @@ pub async fn execute_critical(cmd: CriticalCommands) -> Result<(), Box<dyn std::
         CriticalCommands::CreateUser { name } => {
             use crate::message::CreateUser;
             if name.is_empty() {
-                tracing::warn!("Skipping CreateUser command with empty username");
+                tracing::warn!(
+                    operation = "execute_critical",
+                    name = %name,
+                    "Skipping CreateUser command with empty username"
+                );
                 return Ok(());
             }
             super::db::create_user(&name)?;
@@ -578,18 +609,33 @@ pub async fn process_network_command(
     let message_vc_clock = received_clock.get_vector_clock_map();
 
     if crate::db::transaction_exists(*message_lamport_time, sender_id)? {
-        tracing::info!("Transaction allready exists, skipping");
+        tracing::info!(
+            operation = "process_network_command",
+            sender_id = sender_id,
+            lamport_time = message_lamport_time,
+            "Transaction allready exists, skipping"
+        );
         return Ok(());
     }
 
     match msg {
         crate::message::MessageInfo::CreateUser(create_user) => {
             if create_user.name.is_empty() {
-                tracing::warn!("Received CreateUser message with empty username, skipping");
+                tracing::warn!(
+                    operation = "process_network_command",
+                    sender_id = sender_id,
+                    lamport_time = message_lamport_time,
+                    "Received CreateUser message with empty username, skipping"
+                );
                 return Ok(());
             }
             if crate::db::user_exists(&create_user.name)? {
-                tracing::info!("User already exists, skipping");
+                tracing::info!(
+                    operation = "process_network_command",
+                    sender_id = sender_id,
+                    user = create_user.name,
+                    "User already exists, skipping"
+                );
                 return Ok(());
             }
             super::db::create_user(&create_user.name)?;
@@ -648,7 +694,10 @@ pub async fn process_network_command(
             )?;
         }
         crate::message::MessageInfo::SnapshotResponse(_) => {
-            tracing::error!("Should not process snapshot response");
+            tracing::error!(
+                operation = "process_network_command",
+                "Should not process snapshot response"
+            );
         }
         crate::message::MessageInfo::AckMutex(_) => {
             // Handle mutex acknowledgment
@@ -660,10 +709,16 @@ pub async fn process_network_command(
             // Handle mutex release
         }
         crate::message::MessageInfo::None => {
-            tracing::error!("Should not process None message");
+            tracing::error!(
+                operation = "process_network_command",
+                "Should not process None message"
+            );
         }
         crate::message::MessageInfo::Acknowledge(_) => {
-            tracing::error!("Should not process Acknowledge message");
+            tracing::error!(
+                operation = "process_network_command",
+                "Should not process Acknowledge message"
+            );
         }
     }
 
