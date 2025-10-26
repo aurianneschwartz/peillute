@@ -1,58 +1,131 @@
-version: '3.8'
-services:
-  n1:
-    image: peillute:latest
-    container_name: n1
-    environment:
-      CLI_IP: 172.18.0.2
-      CLI_PORT: 10000
-      CLI_PEERS: 172.18.0.3:10001
-    networks:
-      peillute:
-        ipv4_address: 172.18.0.2
-    ports:
-      - "10000:10000"
-      - "8080:11001"
-    stdin_open: true
-    tty: true
-
-  n2:
-    image: peillute:latest
-    container_name: n2
-    entrypoint: ["/bin/sh","-c","sleep 1 && /usr/local/bin/entrypoint.sh"]
-    environment:
-      CLI_IP: 172.18.0.3
-      CLI_PORT: 10001
-      CLI_PEERS: 172.18.0.2:10000,172.18.0.4:10002
-    networks:
-      peillute:
-        ipv4_address: 172.18.0.3
-    ports:
-      - "10001:10001"
-      - "8081:11002"
-    stdin_open: true
-    tty: true
-
-  n3:
-    image: peillute:latest
-    container_name: n3
-    entrypoint: ["/bin/sh","-c","sleep 2 && /usr/local/bin/entrypoint.sh"]
-    environment:
-      CLI_IP: 172.18.0.4
-      CLI_PORT: 10002
-      CLI_PEERS: 172.18.0.3:10001
-    networks:
-      peillute:
-        ipv4_address: 172.18.0.4
-    ports:
-      - "10002:10002"
-      - "8082:11003"
-    stdin_open: true
-    tty: true
-
 networks:
   peillute:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.18.0.0/16
+        - subnet: 10.66.0.0/24
+
+volumes:
+  loki-data:
+
+services:
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: jaeger
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+    networks:
+      peillute:
+        ipv4_address: 10.66.0.10
+    restart: unless-stopped
+
+  loki:
+    image: grafana/loki:3.0.0
+    container_name: loki
+    command: ["-config.file=/etc/loki/local-config.yml"]
+    volumes:
+      - ./loki-config.yml:/etc/loki/local-config.yml:ro
+      - loki-data:/loki
+    ports:
+      - "3100:3100"
+    networks:
+      peillute:
+        ipv4_address: 10.66.0.11
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    networks:
+      peillute:
+        ipv4_address: 10.66.0.12
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on: [prometheus]
+    networks:
+      peillute:
+        ipv4_address: 10.66.0.13
+    restart: unless-stopped
+
+  n1:
+    image: peillute:latest
+    container_name: n1
+    environment:
+      CLI_IP: 10.66.0.2
+      CLI_PORT: 10000
+      CLI_PEERS: 10.66.0.3:10001
+      JAEGER_ADR: http://jaeger:4317
+      LOKI_ADR: http://loki:3100/otlp/v1/logs
+      RUST_LOG: info
+    networks:
+      peillute:
+        ipv4_address: 10.66.0.2
+    ports:
+      - "10000:10000"
+      - "8080:11001"
+    stdin_open: true
+    tty: true
+    depends_on: [jaeger, loki, prometheus]
+    restart: unless-stopped
+
+  n2:
+    image: peillute:latest
+    container_name: n2
+    environment:
+      CLI_IP: 10.66.0.3
+      CLI_PORT: 10001
+      CLI_PEERS: 10.66.0.2:10000,10.66.0.4:10002
+      JAEGER_ADR: http://jaeger:4317
+      LOKI_ADR: http://loki:3100/otlp/v1/logs
+      RUST_LOG: info
+    networks:
+      peillute:
+        ipv4_address: 10.66.0.3
+    ports:
+      - "10001:10001"
+      - "8081:11002"
+    stdin_open: true
+    tty: true
+    depends_on: [jaeger, loki, prometheus]
+    restart: unless-stopped
+
+  n3:
+    image: peillute:latest
+    container_name: n3
+    environment:
+      CLI_IP: 10.66.0.4
+      CLI_PORT: 10002
+      CLI_PEERS: 10.66.0.3:10001
+      JAEGER_ADR: http://jaeger:4317
+      LOKI_ADR: http://loki:3100/otlp/v1/logs
+      RUST_LOG: info
+    networks:
+      peillute:
+        ipv4_address: 10.66.0.4
+    ports:
+      - "10002:10002"
+      - "8082:11003"
+    stdin_open: true
+    tty: true
+    depends_on: [jaeger, loki, prometheus]
+    restart: unless-stopped

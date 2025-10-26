@@ -1,10 +1,9 @@
+# ./prometheus.yml
 global:
   scrape_interval: 10s
   evaluation_interval: 10s
 
 scrape_configs:
-  - job_name: 'peillute'
+  - job_name: "peillute"
     static_configs:
-      - targets: ['host.docker.internal:9100']  
-        labels:
-          service: 'peillute'
+      - targets: ["n1:9100","n2:9100","n3:9100"]

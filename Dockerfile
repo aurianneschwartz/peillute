@@ -49,6 +49,12 @@ RUN printf '%s\n' \
   'if [ -n "$CLI_PEERS" ]; then' \
   '  ARGS="$ARGS --cli-peers $CLI_PEERS"' \
   'fi' \
+  'if [ -n "$JAEGER_ADR" ]; then' \
+  '  ARGS="$ARGS --jaeger-adr $JAEGER_ADR"' \
+  'fi' \
+  'if [ -n "$LOKI_ADR" ]; then' \
+  '  ARGS="$ARGS --loki-adr $LOKI_ADR"' \
+  'fi' \
   'export RUST_LOG=debug && exec /app/web/server $ARGS' \
   > /usr/local/bin/entrypoint.sh \
  && chmod +x /usr/local/bin/entrypoint.sh
