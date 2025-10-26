@@ -139,10 +139,10 @@ impl AppState {
     pub fn init_sync(&mut self, sync_needed: bool) {
         if sync_needed {
             tracing::warn!(
-            sync_needed = sync_needed,
-            operation = "init_sync", 
-            "Local site requires synchronization with network"
-        );
+                sync_needed = sync_needed,
+                operation = "init_sync",
+                "Local site requires synchronization with network"
+            );
         }
         self.sync_needed = sync_needed;
     }

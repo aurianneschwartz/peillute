@@ -4,6 +4,7 @@
 //! for the Peillute application, including both local and network command processing.
 
 #![cfg(feature = "server")]
+#[tracing::instrument(name = "control::control_worker", fields(clef = "worker"))]
 /// Worker that handles critical commands
 pub fn control_worker() {
     tokio::spawn(async {
@@ -59,10 +60,7 @@ pub fn control_worker() {
                             break;
                         }
                     }
-                    tracing::info!(
-                        operation = "control_worker",
-                        "Ending critical section"
-                    );
+                    tracing::info!(operation = "control_worker", "Ending critical section");
                 }
             }
         }
@@ -92,10 +90,7 @@ pub fn parse_command(line: Result<Option<String>, std::io::Error>) -> Command {
             command
         }
         Ok(None) => {
-            tracing::warn!(
-                operation = "parse_command",
-                "No input received"
-            );
+            tracing::warn!(operation = "parse_command", "No input received");
             println!("Aucun input");
             Command::Unknown("Aucun input".to_string())
         }
@@ -174,6 +169,7 @@ pub enum CriticalCommands {
     SyncSnapshot,
 }
 
+#[tracing::instrument(name = "control::enqueue_critical", fields(clef = "queue"))]
 #[cfg(feature = "server")]
 /// Enqueue a critical command
 pub async fn enqueue_critical(cmd: CriticalCommands) -> Result<(), Box<dyn std::error::Error>> {
@@ -191,18 +187,20 @@ pub async fn enqueue_critical(cmd: CriticalCommands) -> Result<(), Box<dyn std::
         waiting_sc = %st.waiting_sc,
         "Request critical section"
     );
- 
+
     if !st.in_sc && !st.waiting_sc {
         st.acquire_mutex().await?;
     }
     Ok(())
 }
 
+#[tracing::instrument(name = "control::execute_critical", fields(clef = ?cmd))]
 #[cfg(feature = "server")]
 /// Execute a critical command on our site
 ///
 /// Called by the control worker only when the Mutex is acquired
 pub async fn execute_critical(cmd: CriticalCommands) -> Result<(), Box<dyn std::error::Error>> {
+    let _guard = crate::metrics::OpGuardSimple::new("control", "execute_critical");
     use crate::message::{Message, MessageInfo, NetworkMessageCode};
     use crate::network::diffuse_message;
     use crate::state::LOCAL_APP_STATE;
@@ -404,6 +402,7 @@ pub async fn execute_critical(cmd: CriticalCommands) -> Result<(), Box<dyn std::
     Ok(())
 }
 
+#[tracing::instrument(name = "control::process_cli_command", fields(clef = ?cmd))]
 #[cfg(feature = "server")]
 /// Execute a command from the CLI
 /// Update the clock of the site
@@ -603,7 +602,6 @@ pub async fn process_network_command(
     sender_id: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use crate::message::MessageInfo;
-
 
     let message_lamport_time = received_clock.get_lamport();
     let message_vc_clock = received_clock.get_vector_clock_map();

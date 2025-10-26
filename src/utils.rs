@@ -1,7 +1,7 @@
 #[cfg(feature = "server")]
 pub fn get_mac_address() -> Option<String> {
     use pnet::datalink;
-    use tracing::{debug};
+    use tracing::debug;
     debug!("Searching for valid network interface MAC address");
     let interfaces = datalink::interfaces();
     for iface in interfaces {
@@ -23,7 +23,7 @@ pub fn get_mac_address() -> Option<String> {
 }
 #[cfg(feature = "server")]
 pub async fn reload_existing_site() -> Result<(String, crate::clock::Clock), String> {
-    use tracing::{info};
+    use tracing::info;
     match crate::db::get_local_state() {
         Ok((site_id, clock)) => {
             info!(
@@ -35,7 +35,7 @@ pub async fn reload_existing_site() -> Result<(String, crate::clock::Clock), Str
             Ok((site_id, clock))
         }
         Err(e) => {
-            info!( 
+            info!(
                 reason = "no_previous_state",
                 action = "will_create_new",
                 "No existing site state, initializing new site"

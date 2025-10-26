@@ -148,8 +148,8 @@ impl SnapshotManager {
 
         tracing::debug!(
             operation = "snapshot_push",
-             sites_received = self.received.len(),
-             sites_expected = self.expected,
+            sites_received = self.received.len(),
+            sites_expected = self.expected,
             "All local snapshots received, processing snapshot."
         );
 
@@ -210,6 +210,7 @@ impl SnapshotManager {
     ///
     /// Computes the union of all transactions and identifies missing
     /// transactions for each node.
+
     fn build_snapshot(&self, snaps: &[LocalSnapshot]) -> GlobalSnapshot {
         let mut union: std::collections::HashSet<TxSummary> = std::collections::HashSet::new();
         for s in snaps {

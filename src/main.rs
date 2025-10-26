@@ -4,12 +4,15 @@
 //! server and client-side functionality. The application supports distributed transactions
 //! with vector clock synchronization and peer-to-peer communication.
 
-#![allow(non_snake_case)]
+use axum::{Router, routing::get};
+use std::sync::Arc;
 
+#[allow(non_snake_case)]
 mod clock;
 mod control;
 mod db;
 mod message;
+mod metrics;
 mod network;
 mod open_telemetry;
 mod snapshot;
@@ -39,6 +42,12 @@ struct Args {
     /// ID for the batabase path
     #[arg(long, default_value_t = 0)]
     cli_db_id: u16,
+
+    #[arg(long, default_value_t = String::from("http://localhost:4317"))]
+    jaeger_adr: String,
+
+    #[arg(long, default_value_t = String::from("http://localhost:3100/otlp/v1/logs"))]
+    loki_adr: String,
 }
 
 #[cfg(feature = "server")]
@@ -55,21 +64,38 @@ async fn main() -> rusqlite::Result<(), Box<dyn std::error::Error>> {
     const HIGH_PORT: u16 = 11000;
     const PORT_OFFSET: u16 = HIGH_PORT - LOW_PORT + 1;
 
+    let args = Args::parse();
+
+    //init the logs first
+    open_telemetry::init_tracing(&args.jaeger_adr, &args.loki_adr)?;
+
+    tracing::info!(operation = "init_tracing", "📌Tracing initialized.📌");
+
+    //init the metrics
+    let metrics = Arc::new(metrics::init_metrics());
+
+    tracing::info!(operation = "init_metrics", "📊Metrics initialized.📊");
+
     if !db::is_database_initialized()? {
-        let _ = db::init_db();
+        let _ = db::init_db_with_metrics(Some(&metrics.db_init_counter));
     }
 
     control::control_worker();
-    
-    //init the logs
-    open_telemetry::init_tracing()?;
 
-    tracing::info!(
-        operation = "init_tracing",
-        "📌Tracing initialized.📌"
-    );
-
-    let args = Args::parse();
+    {
+        let registry = metrics.registry.clone();
+        tokio::spawn(async move {
+            let app = Router::new().route(
+                "/metrics",
+                get(move || metrics::metrics_handler(registry.clone())),
+            );
+            let addr = "0.0.0.0:9100".parse::<SocketAddr>().expect("bind address");
+            let listener = tokio::net::TcpListener::bind(addr)
+                .await
+                .expect("bind listener");
+            axum::serve(listener, app).await.expect("serve /metrics");
+        });
+    }
 
     let port_range = LOW_PORT..=HIGH_PORT;
     let selected_port = if args.cli_port == 0 {

@@ -38,6 +38,13 @@ const NULL: &str = "NULL";
 #[cfg(feature = "server")]
 /// Initializes the database schema
 pub fn init_db() -> rusqlite::Result<()> {
+    init_db_with_metrics(None)
+}
+
+#[cfg(feature = "server")]
+pub fn init_db_with_metrics(
+    metrics: Option<&opentelemetry::metrics::Counter<u64>>,
+) -> rusqlite::Result<()> {
     {
         let conn = DB_CONN.lock().unwrap();
 
@@ -100,10 +107,11 @@ pub fn init_db() -> rusqlite::Result<()> {
         )?;
     }
 
-    tracing::debug!(
-        operation = "init_db",
-        "Database initialized successfully."
-    );
+    if let Some(counter) = metrics {
+        counter.add(1, &[opentelemetry::KeyValue::new("component", "database")]);
+    }
+
+    tracing::debug!(operation = "init_db", "Database initialized successfully.");
     Ok(())
 }
 
@@ -150,9 +158,7 @@ pub fn update_db_with_snapshot(
     );
 
     if snapshot.missing.is_empty() {
-        tracing::info!(
-            "No missing transactions, nothing to do"
-        );
+        tracing::info!("No missing transactions, nothing to do");
         return;
     }
 
@@ -254,26 +260,35 @@ pub fn user_exists(name: &str) -> rusqlite::Result<bool> {
 #[cfg(feature = "server")]
 /// Creates a new user with zero balance
 pub fn create_user(unique_name: &str) -> rusqlite::Result<()> {
+    let mut _guard = crate::metrics::OpGuardSimple::new("database", "create_user");
     use rusqlite::params;
     if user_exists(unique_name)? {
         tracing::warn!(
             operation = "create_user",
-            "User '{}' already exists.", unique_name
+            "User '{}' already exists.",
+            unique_name
         );
         return Ok(());
     }
 
-    {
-        tracing::debug!(
-            operation = "create_user",
-            "Adding user {}", unique_name
-        );
+    let result = {
+        tracing::debug!(operation = "create_user", "Adding user {}", unique_name);
         let conn = DB_CONN.lock().unwrap();
         conn.execute(
             "INSERT INTO User (unique_name, solde) VALUES (?1, 0)",
             params![unique_name],
-        )?;
-        Ok(())
+        )
+    };
+
+    match result {
+        Ok(_) => {
+            crate::metrics::PROM_DB_USER_CREATED.inc();
+            Ok(())
+        }
+        Err(e) => {
+            _guard.mark_error();
+            Err(e)
+        }
     }
 }
 
@@ -339,7 +354,9 @@ pub fn update_solde(name: &str) -> rusqlite::Result<()> {
         )?;
         tracing::debug!(
             operation = "update_user_balance",
-            "Updated balance for {} to {}", name, solde
+            "Updated balance for {} to {}",
+            name,
+            solde
         );
         Ok(())
     }
@@ -365,6 +382,7 @@ pub fn create_transaction(
     optional_msg: &str,
     vector_clock: &std::collections::HashMap<String, i64>,
 ) -> rusqlite::Result<()> {
+    let mut _guard = crate::metrics::OpGuardSimple::new("database", "create_transaction");
     use rusqlite::params;
     if from_user != NULL && calculate_solde(from_user)? < amount {
         let err = rusqlite::Error::SqliteFailure(
@@ -384,6 +402,7 @@ pub fn create_transaction(
             from_user,
             amount
         );
+        _guard.mark_error();
         return Err(err);
     }
 
@@ -432,6 +451,8 @@ pub fn create_transaction(
         update_solde(to_user)?;
     }
 
+    crate::metrics::PROM_DB_TRANSACTION_CREATED.inc();
+
     Ok(())
 }
 
@@ -443,6 +464,7 @@ pub fn deposit(
     source_node: &str,
     vector_clock: &std::collections::HashMap<String, i64>,
 ) -> rusqlite::Result<()> {
+    let _guard = crate::metrics::OpGuardSimple::new("database", "deposit");
     if !user_exists(user)? {
         let err = rusqlite::Error::SqliteFailure(
             rusqlite::ffi::Error::new(rusqlite::ffi::ErrorCode::Unknown as i32),
@@ -471,10 +493,7 @@ pub fn deposit(
         return Err(err);
     }
 
-    tracing::debug!(
-        operation = "deposit",
-        "Depositing {} to {}", amount, user
-    );
+    tracing::debug!(operation = "deposit", "Depositing {} to {}", amount, user);
 
     create_transaction(
         NULL,
@@ -495,6 +514,7 @@ pub fn withdraw(
     source_node: &str,
     vector_clock: &std::collections::HashMap<String, i64>,
 ) -> rusqlite::Result<()> {
+    let _guard = crate::metrics::OpGuardSimple::new("database", "withdraw");
     if amount < 0.0 {
         let err = rusqlite::Error::SqliteFailure(
             rusqlite::ffi::Error::new(rusqlite::ffi::ErrorCode::Unknown as i32),
@@ -534,7 +554,9 @@ pub fn withdraw(
 
     tracing::debug!(
         operation = "withdraw",
-        "Withdrawing {} from {}", amount, user
+        "Withdrawing {} from {}",
+        amount,
+        user
     );
 
     create_transaction(
@@ -579,7 +601,8 @@ pub fn refund_transaction(
             );
             tracing::error!(
                 operation = "refund_transaction",
-                "User {} has not enough money to give back", &tx.to_user
+                "User {} has not enough money to give back",
+                &tx.to_user
             );
             return Err(err);
         }
@@ -611,7 +634,9 @@ pub fn refund_transaction(
             );
             tracing::error!(
                 operation = "refund_transaction",
-                "Transaction {}-{} already refunded", node, transac_time
+                "Transaction {}-{} already refunded",
+                node,
+                transac_time
             );
             return Err(err);
         }

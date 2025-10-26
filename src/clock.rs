@@ -97,6 +97,7 @@ impl Clock {
     /// Element of local vector clock is incremented
     ///
     /// Then we call update methods to take the maximum of the received clocks if any
+    #[tracing::instrument(name = "clock::update_clock", skip(self, received_clock), fields(clef = %local_site_id, has_remote = received_clock.is_some()))]
     pub fn update_clock(&mut self, local_site_id: &str, received_clock: Option<&Self>) {
         if let Some(rc) = received_clock {
             self.update_vector(rc.get_vector_clock_map());
