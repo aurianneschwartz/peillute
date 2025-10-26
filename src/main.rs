@@ -4,9 +4,6 @@
 //! server and client-side functionality. The application supports distributed transactions
 //! with vector clock synchronization and peer-to-peer communication.
 
-use axum::{Router, routing::get};
-use std::sync::Arc;
-
 #[allow(non_snake_case)]
 mod clock;
 mod control;
@@ -72,7 +69,7 @@ async fn main() -> rusqlite::Result<(), Box<dyn std::error::Error>> {
     tracing::info!(operation = "init_tracing", "📌Tracing initialized.📌");
 
     //init the metrics
-    let metrics = Arc::new(metrics::init_metrics());
+    let metrics = std::sync::Arc::new(metrics::init_metrics());
 
     tracing::info!(operation = "init_metrics", "📊Metrics initialized.📊");
 
@@ -85,9 +82,9 @@ async fn main() -> rusqlite::Result<(), Box<dyn std::error::Error>> {
     {
         let registry = metrics.registry.clone();
         tokio::spawn(async move {
-            let app = Router::new().route(
+            let app = axum::Router::new().route(
                 "/metrics",
-                get(move || metrics::metrics_handler(registry.clone())),
+                axum::routing::get(move || metrics::metrics_handler(registry.clone())),
             );
             let addr = "0.0.0.0:9100".parse::<SocketAddr>().expect("bind address");
             let listener = tokio::net::TcpListener::bind(addr)

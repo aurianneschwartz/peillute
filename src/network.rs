@@ -2,17 +2,18 @@
 //!
 //! This module handles all network-related functionality, including peer discovery,
 //! message sending/receiving, and connection management in the distributed system.
-use opentelemetry::propagation::{Extractor, Injector};
-use opentelemetry::{Context as OtelContext, global};
-use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 struct MapCarrier(std::collections::HashMap<String, String>);
-impl Injector for MapCarrier {
+
+#[cfg(feature = "server")]
+impl opentelemetry::propagation::Injector for MapCarrier {
     fn set(&mut self, key: &str, value: String) {
         self.0.insert(key.to_string(), value);
     }
 }
-impl Extractor for MapCarrier {
+
+#[cfg(feature = "server")]
+impl opentelemetry::propagation::Extractor for MapCarrier {
     fn get(&self, key: &str) -> Option<&str> {
         self.0.get(key).map(|s| s.as_str())
     }
@@ -23,11 +24,14 @@ impl Extractor for MapCarrier {
 
 const MAGIC_TRAC: u32 = 0x5452_4143;
 
+#[cfg(feature = "server")]
 fn prepend_trace_header(mut payload: Vec<u8>) -> Vec<u8> {
+    use tracing_opentelemetry::OpenTelemetrySpanExt;
+
     let span = tracing::Span::current();
     let cx = span.context();
     let mut carrier = MapCarrier(std::collections::HashMap::new());
-    global::get_text_map_propagator(|p| p.inject_context(&cx, &mut carrier));
+    opentelemetry::global::get_text_map_propagator(|p| p.inject_context(&cx, &mut carrier));
 
     let header_json = serde_json::to_vec(&carrier.0).unwrap_or_default();
     let hlen: u16 = header_json.len().try_into().unwrap_or(0);
@@ -40,7 +44,8 @@ fn prepend_trace_header(mut payload: Vec<u8>) -> Vec<u8> {
     out
 }
 
-fn split_trace_header(buf: &[u8]) -> (Option<OtelContext>, &[u8]) {
+#[cfg(feature = "server")]
+fn split_trace_header(buf: &[u8]) -> (Option<opentelemetry::Context>, &[u8]) {
     if buf.len() < 6 {
         return (None, buf);
     }
@@ -57,7 +62,7 @@ fn split_trace_header(buf: &[u8]) -> (Option<OtelContext>, &[u8]) {
     let map: std::collections::HashMap<String, String> =
         serde_json::from_slice(header).unwrap_or_default();
     let carrier = MapCarrier(map);
-    let cx = global::get_text_map_propagator(|p| p.extract(&carrier));
+    let cx = opentelemetry::global::get_text_map_propagator(|p| p.extract(&carrier));
     let payload = &buf[6 + hlen..];
     (Some(cx), payload)
 }
@@ -300,6 +305,7 @@ pub async fn handle_network_message(
     use crate::state::LOCAL_APP_STATE;
     use rmp_serde::decode;
     use tokio::io::AsyncReadExt;
+    use tracing_opentelemetry::OpenTelemetrySpanExt;
 
     let mut buf = vec![0; 1024];
     loop {
