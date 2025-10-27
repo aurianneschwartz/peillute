@@ -1,0 +1,327 @@
+{
+  "id": null,
+  "uid": "peillute-logs",
+  "title": "Peillute — Application Logs",
+  "tags": [
+    "loki",
+    "logs",
+    "peillute"
+  ],
+  "timezone": "browser",
+  "version": 1,
+  "schemaVersion": 39,
+  "refresh": "10s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "ds",
+        "type": "datasource",
+        "query": "loki",
+        "label": "Datasource",
+        "current": {
+          "text": "Loki",
+          "value": "Loki",
+          "selected": true
+        }
+      },
+      {
+        "name": "severity",
+        "type": "custom",
+        "label": "severity_text",
+        "options": [
+          {
+            "text": ".*",
+            "value": ".*",
+            "selected": true
+          },
+          {
+            "text": "TRACE",
+            "value": "TRACE",
+            "selected": false
+          },
+          {
+            "text": "DEBUG",
+            "value": "DEBUG",
+            "selected": false
+          },
+          {
+            "text": "INFO",
+            "value": "INFO",
+            "selected": false
+          },
+          {
+            "text": "WARN",
+            "value": "WARN",
+            "selected": false
+          },
+          {
+            "text": "ERROR",
+            "value": "ERROR",
+            "selected": false
+          },
+          {
+            "text": "FATAL",
+            "value": "FATAL",
+            "selected": false
+          }
+        ],
+        "query": ".*,TRACE,DEBUG,INFO,WARN,ERROR,FATAL",
+        "current": {
+          "text": ".*",
+          "value": ".*"
+        }
+      },
+      {
+        "name": "text",
+        "type": "textbox",
+        "label": "Full-text contains",
+        "query": "",
+        "current": {
+          "text": ""
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "logs",
+      "title": "Live logs",
+      "id": 1,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 9
+      },
+      "options": {
+        "dedupStrategy": "none",
+        "showTime": true,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "showLabels": true,
+        "enableLogDetails": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "$ds"
+          },
+          "expr": "{service_name=\"peillute\"} | json | severity_text=~\"$severity\" |= \"$text\""
+        }
+      ]
+    },
+    {
+      "type": "logs",
+      "title": "Recent errors",
+      "id": 2,
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 24,
+        "h": 8
+      },
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "showLabels": true,
+        "enableLogDetails": true,
+        "dedupStrategy": "signature"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "$ds"
+          },
+          "expr": "{service_name=\"peillute\"} | json | severity_text=~\"ERROR|FATAL|WARN\" |~ \"(?i)error|fail|panic|exception\""
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Log volume by severity_text",
+      "id": 3,
+      "gridPos": {
+        "x": 0,
+        "y": 17,
+        "w": 12,
+        "h": 8
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "$ds"
+          },
+          "expr": "sum by (severity_text) (rate({service_name=\"peillute\"} | json | severity_text=~\"$severity\" [1m]))"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Logs by operation",
+      "id": 4,
+      "gridPos": {
+        "x": 12,
+        "y": 17,
+        "w": 12,
+        "h": 8
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "$ds"
+          },
+          "expr": "sum by (operation) (rate({service_name=\"peillute\"} | json | operation!=\"\" | severity_text=~\"$severity\" [1m]))"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Logs by scope_name",
+      "id": 5,
+      "gridPos": {
+        "x": 0,
+        "y": 25,
+        "w": 12,
+        "h": 8
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "$ds"
+          },
+          "expr": "sum by (scope_name) (rate({service_name=\"peillute\"} | json | severity_text=~\"$severity\" [1m]))"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Top operations (WARN/ERROR, 5m)",
+      "id": 6,
+      "gridPos": {
+        "x": 12,
+        "y": 25,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "$ds"
+          },
+          "expr": "sort_desc(sum by (operation) (count_over_time({service_name=\"peillute\"} | json | severity_text=~\"WARN|ERROR|FATAL\" [5m])))"
+        }
+      ],
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Errors by scope_name",
+      "id": 7,
+      "gridPos": {
+        "x": 0,
+        "y": 33,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "$ds"
+          },
+          "expr": "sum by (scope_name) (rate({service_name=\"peillute\"} | json | severity_text=~\"ERROR|FATAL\" [1m]))"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Errors by operation",
+      "id": 8,
+      "gridPos": {
+        "x": 12,
+        "y": 33,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "$ds"
+          },
+          "expr": "sum by (operation) (rate({service_name=\"peillute\"} | json | severity_text=~\"ERROR|FATAL\" [1m]))"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Network — nb_bytes (sum rate)",
+      "id": 9,
+      "gridPos": {
+        "x": 0,
+        "y": 41,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "$ds"
+          },
+          "expr": "sum by (operation) (rate({service_name=\"peillute\"} | json | operation!=\"\" | unwrap nb_bytes [1m]))"
+        }
+      ]
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "type": "dashboard",
+        "name": "Annotations & Alerts",
+        "hide": false,
+        "builtIn": 1
+      }
+    ]
+  }
+}

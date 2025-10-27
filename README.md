@@ -23,6 +23,47 @@ The project documentation is automatically generated using `cargo doc` and deplo
 
 ## 🚀 Installation
 
+### Observability
+
+To deploy the complete demonstration environment with observability, follow these steps:
+
+#### Build and Deployment
+
+1. **Build the Docker image**:
+```bash
+   docker build -t peillute:latest .
+```
+
+2. **Launch the environment with Docker Compose**:
+```bash
+   docker-compose up
+```
+
+This will create a network of 3 interconnected nodes: `n1 ↔ n2 ↔ n3`
+
+#### Observability Stack
+
+The application integrates a complete observability stack:
+- **Loki**: log aggregation and management
+- **Jaeger**: distributed request tracing
+- **Grafana**: metrics and logs visualization
+
+#### Access Points
+
+Once deployment is complete, services will be accessible at the following addresses:
+
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| Node 1 | http://localhost:8080 | - |
+| Node 2 | http://localhost:8081 | - |
+| Node 3 | http://localhost:8082 | - |
+| Jaeger | http://localhost:16686 | - |
+| Grafana | http://localhost:3000 | admin / admin |
+
+> **Note**: Loki is not directly accessible but is connected to Grafana for log visualization.
+
+Feel free to explore this sandboxed environment!
+
 
 ### Installation with Docker
 
