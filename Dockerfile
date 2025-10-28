@@ -18,7 +18,6 @@ RUN rustup target add wasm32-unknown-unknown
 WORKDIR /app
 COPY . .
 
-# Install dioxus-cli: try prebuilt via cargo-binstall; if not available, fall back to locked git install
 RUN set -eux; \
   curl -L --proto '=https' --tlsv1.2 -sSf \
     https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh \
