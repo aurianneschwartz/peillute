@@ -13,15 +13,22 @@ RUN apt-get update && apt-get install -y \
     build-essential \
  && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
+RUN rustup target add wasm32-unknown-unknown
 
+WORKDIR /app
 COPY . .
 
-RUN curl -L --proto '=https' --tlsv1.2 -sSf \
-  https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash \
- && cargo binstall -y dioxus-cli
+# Install dioxus-cli: try prebuilt via cargo-binstall; if not available, fall back to locked git install
+RUN set -eux; \
+  curl -L --proto '=https' --tlsv1.2 -sSf \
+    https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh \
+    | bash; \
+  export CARGO_BINSTALL_NO_COMPILE=1; \
+  if ! cargo binstall -y dioxus-cli@0.6.3; then \
+    cargo install --git https://github.com/DioxusLabs/dioxus --tag v0.6.3 dioxus-cli --locked; \
+  fi
 
-RUN  RUST_LOG=debug RUST_BACKTRACE=1 dx bundle --release --platform web
+RUN RUST_LOG=debug RUST_BACKTRACE=1 dx bundle --release --platform web
 
 FROM debian:bookworm-slim AS runtime
 
@@ -32,7 +39,6 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-
 
 COPY --from=builder /app/target/dx/peillute/release/web /app/web
 
@@ -60,7 +66,6 @@ RUN printf '%s\n' \
  && chmod +x /usr/local/bin/entrypoint.sh
 
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
-
 USER appuser
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
